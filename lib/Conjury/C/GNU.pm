@@ -1,11 +1,35 @@
-# Copyright (c) 1999 James H. Woodyatt.  All rights reserved.
+# Copyright (c) 1999-2000, James H. Woodyatt
+# All rights reserved.
 #
-# Redistribution and use in source and machine-readable forms, with or without
-# modification, are permitted provided that the conditions and terms of its
-# accompanying LICENSE are met.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#   Redistributions of source code must retain the above copyright
+#   notice, this list of conditions and the following disclaimer.
+#
+#   Redistributions in binary form must reproduce the above copyright
+#   notice, this list of conditions and the following disclaimer in
+#   the documentation and/or other materials provided with the
+#   distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE. 
 
-require 5.004;
+require 5.005;
 use strict;
+
+my (%prototype, %validator);
 
 package Conjury::C::GNU;
 
@@ -13,6 +37,13 @@ BEGIN {
 	use Conjury::C;
 	use vars qw(@ISA);
 	@ISA = qw(Conjury::C);
+
+	$validator{gcc_language} = sub {
+		my ($x, $y) = (shift, undef);
+		$y = q/not 'c', 'c++' or 'objective-c'/
+		  unless ($x =~ m/\A(c|c\+\+|objective-c)\Z/i);
+		return $y;
+	};
 }
 
 package Conjury::C::GNU::Compiler;
@@ -20,13 +51,25 @@ use vars qw(@ISA);
 use Carp qw(croak);
 use Conjury::Core qw(cast_error %Option);
 
-my %gnu_cc_argmatch;
+sub _new_f()	{ __PACKAGE__ . '::new'		}
 
 BEGIN {
 	@ISA = qw(Conjury::C::Compiler);
 
-	$gnu_cc_argmatch{new} =
-	  join '|', qw(Program Options Language Journal No_Scanner);
+	my $proto;
+
+	$proto = Conjury::Core::Prototype->new;
+	$proto->optional_arg
+	  (Program => \&Conjury::Core::Prototype::validate_scalar);
+	$proto->optional_arg
+	  (No_Scanner => \&Conjury::Core::Prototype::validate_scalar);
+	$proto->optional_arg
+	  (Language => $validator{gcc_language});
+	$proto->optional_arg
+	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+	$proto->optional_arg
+	  (Journal => \&Conjury::Core::Prototype::validate_hash);
+	$prototype{_new_f()} = $proto;
 }
 
 my $gcc_scanner = sub {
@@ -61,22 +104,17 @@ my $gcc_scanner = sub {
 
 sub new {
 	my ($class, %arg) = @_;
-	croak 'Conjury::C::GNU::Compiler::new-- argument mismatch'
-	  unless (!((@_ - 1) % 2)
-			  && !grep $_ !~ /\A($gnu_cc_argmatch{new})\Z/, keys(%arg));
+	my $error = $prototype{_new_f()}->validate(\%arg);
+	croak _new_f, "-- $error" if $error;
 
 	$class = ref($class) if ref($class);
 
 	my $program = $arg{Program};
 	$program = 'gcc' unless defined($program);
-	croak 'Conjury::C::GNU::Compiler::new-- argument mismatch {Program}'
-	  unless defined($program) && !ref($program);
 
 	my $language = $arg{Language};
 	$language = 'c' unless defined($language);
 	$language = lc($language);
-	croak 'Conjury::C::GNU::Compiler::new-- argument mismatch {Language}'
-	  unless defined($language) && !ref($language);
 	$program =~ s/gcc/g++/ if $language eq 'c++';
 
 	my $no_scanner = $arg{No_Scanner};
@@ -112,33 +150,38 @@ package Conjury::C::GNU::Linker;
 use vars qw(@ISA);
 use Carp qw(croak);
 
-my %gnu_ld_argmatch;
+sub _new_f()	{ __PACKAGE__ . '::new'		}
 
 BEGIN {
 	@ISA = qw(Conjury::C::Linker);
 
-	$gnu_ld_argmatch{new} =
-	  join '|', qw(Program Options Language Journal);
+	my $proto;
+
+	$proto = Conjury::Core::Prototype->new;
+	$proto->optional_arg
+	  (Program => \&Conjury::Core::Prototype::validate_scalar);
+	$proto->optional_arg
+	  (Language => $validator{gcc_language});
+	$proto->optional_arg
+	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+	$proto->optional_arg
+	  (Journal => \&Conjury::Core::Prototype::validate_hash);
+	$prototype{_new_f()} = $proto;
 }
 
 sub new {
 	my ($class, %arg) = @_;
-	croak 'Conjury::C::GNU::Linker::new-- argument mismatch'
-	  unless (!((@_ - 1) % 2)
-			  && !grep $_ !~ /\A($gnu_ld_argmatch{new})\Z/, keys(%arg));
+	my $error = $prototype{_new_f()}->validate(\%arg);
+	croak _new_f, "-- $error" if $error;
 
 	$class = ref($class) if ref($class);
 
 	my $program = $arg{Program};
 	$program = 'gcc' unless defined($program);
-	croak 'Conjury::C::GNU::Linker::new-- argument mismatch {Program}'
-	  unless defined($program) && !ref($program);
 
 	my $language = $arg{Language};
 	$language = 'c' unless defined($language);
 	$language = lc($language);
-	croak 'Conjury::C::GNU::Linker::new-- argument mismatch {Language}'
-	  unless defined($language) && !ref($language);
 	$program =~ s/gcc/g++/ if $language eq 'c++';
 
 	my $self = eval {

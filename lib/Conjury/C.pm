@@ -1,26 +1,57 @@
-# Copyright (c) 1999 James H. Woodyatt.  All rights reserved.
+# Copyright (c) 1999-2000, James H. Woodyatt
+# All rights reserved.
 #
-# Redistribution and use in source and machine-readable forms, with or without
-# modification, are permitted provided that the conditions and terms of its
-# accompanying LICENSE are met.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#   Redistributions of source code must retain the above copyright
+#   notice, this list of conditions and the following disclaimer.
+#
+#   Redistributions in binary form must reproduce the above copyright
+#   notice, this list of conditions and the following disclaimer in
+#   the documentation and/or other materials provided with the
+#   distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE. 
 
-require 5.004;
+require 5.005;
 use strict;
+
+my (%prototype, %validator);
 
 package Conjury::C;
 use Conjury::Core qw(%Option);
 
 BEGIN {
+	require Conjury::Core::Prototype;
+
 	use Exporter ();
 	use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	use vars qw($Default_Compiler $Default_Linker $Default_Archiver);
-	use subs qw(c_compiler c_linker c_archiver c_object c_executable
-				c_static_library);
 
-	$VERSION = 1.002;
+	$VERSION = 1.003;
+
+	die "Conjury::C v$VERSION requires Conjury::Core v1.003 or later.\n"
+	  unless ($Conjury::Core::VERSION >= 1.003);
+
 	@ISA = qw(Exporter);
 	@EXPORT = qw(&c_compiler &c_linker &c_archiver &c_object
 				 &c_executable &c_static_library);
+
+	use vars qw($Default_Compiler $Default_Linker $Default_Archiver);
+	use subs qw(c_compiler c_linker c_archiver c_object c_executable
+				c_static_library);
 }
 
 
@@ -30,7 +61,9 @@ use Conjury::Core qw(%Option $Current_Context &cast_error &cast_warning
 use Carp qw(croak);
 use Config;
 
-my %cc_argmatch;
+sub _new_f()				{ __PACKAGE__ . '::new'				}
+sub _cc_new_profile_f()		{ __FILE__ . '/$cc_new_profile'		}
+sub _object_spell_f()		{ __PACKAGE__ . '::object_spell'	}
 
 BEGIN {
 	use vars qw($AUTOLOAD %Default);
@@ -44,36 +77,55 @@ BEGIN {
 		return $name;
 	};
 
-	$cc_argmatch{new} =
-	  join '|', qw(Program Options Flag_Map Suffix_Rule Journal Scanner);
+	my $proto;
 
-	$cc_argmatch{object_spell} = 
-	  join '|', qw(Directory Options Source Factors Includes Defines);
+	$proto = Conjury::Core::Prototype->new;
+	$proto->optional_arg
+	  (Program => \&Conjury::Core::Prototype::validate_scalar);
+	$proto->optional_arg
+	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+	$proto->optional_arg
+	  (Flag_Map	=> \&Conjury::Core::Prototype::validate_hash_of_scalars);
+	$proto->optional_arg
+	  (Suffix_Rule => \&Conjury::Core::Prototype::validate_code);
+	$proto->optional_arg
+	  (Journal => \&Conjury::Core::Prototype::validate_hash);
+	$proto->optional_arg
+	  (Scanner => \&Conjury::Core::Prototype::validate_code);
+	$prototype{_new_f()} = $proto;
+
+	$proto = Conjury::Core::Prototype->new;
+	$proto->optional_arg
+	  (Directory => \&Conjury::Core::Prototype::validate_scalar);
+	$proto->required_arg
+	  (Source => \&Conjury::Core::Prototype::validate_scalar);
+	$proto->optional_arg
+	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+	$proto->optional_arg
+	  (Includes => \&Conjury::Core::Prototype::validate_array_of_scalars);
+	$proto->optional_arg
+	  (Defines => \&Conjury::Core::Prototype::validate_hash_of_scalars);
+	$proto->optional_arg
+	  (Factors => \&Conjury::Core::Prototype::validate_array);
+	$prototype{_object_spell_f()} = $proto;
 }
 
 sub new {
 	my ($class, %arg) = @_;
-	croak 'Conjury::C::Compiler::new-- argument mismatch'
-	  unless ((@_ - 1) % 2 == 0
-			  && !grep $_ !~ /\A($cc_argmatch{new})\Z/, keys(%arg));
+	my $error = $prototype{_new_f()}->validate(\%arg);
+	croak _new_f, "-- $error" if $error;
 
 	$class = ref($class) if ref($class);
 
 	my $program = $arg{Program};
 	$program = $Config{cc} unless defined($program);
-	croak 'Conjury::C::Compiler::new-- argument mismatch {Program}'
-	  unless !ref($program);
 
 	my $options = $arg{Options};
-	croak 'Conjury::C::Compiler::new-- argument mismatch {Options}'
-	  unless (!defined($options) || ref($options) eq 'ARRAY');
 	$options = defined($options) ? [ @$options ] : [ ];
 
 	my $flag_map = $arg{Flag_Map};
-	croak 'Conjury::C::Compiler::new-- argument mismatch {Flag_Map}'
-	  unless(!defined($flag_map) || ref($flag_map) eq 'HASH');
 	my %my_flag_map = %{$Default{Flag_Map}};
-	if (defined($flag_map)) {
+	if (defined $flag_map) {
 		my ($key, $value);
 		while (($key, $value) = each %$flag_map) {
 			$my_flag_map{$key} = $value;
@@ -83,16 +135,9 @@ sub new {
 
 	my $suffix_rule = $arg{Suffix_Rule};
 	$suffix_rule = $Default{Suffix_Rule} unless defined($suffix_rule);
-	croak 'Conjury::C::Compiler::new-- argument mismatch {Suffix_Rule}'
-	  unless ref($suffix_rule) eq 'CODE';
 
 	my $journal = $arg{Journal};
-	croak 'Conjury::C::Compiler::new-- argument mismatch {Journal}'
-	  unless (!defined($journal) || ref($journal));
-
 	my $scanner = $arg{Scanner};
-	croak 'Conjury::C::Compiler::new-- argument mismatch {Scanner}'
-	  unless (!defined($scanner) || ref($scanner) eq 'CODE');
 	
 	my $self = { };
 	bless $self, $class;
@@ -114,9 +159,9 @@ sub AUTOLOAD {
 	$field =~ s/.*:://;
 	my ($self, $set) = @_;
 
-	croak "Conjury::C::Compiler::$field-- argument mismatch"
+	croak __PACKAGE__, "::$field-- argument mismatch"
 	  unless ((@_ == 1 || @_ == 2) && ref($self));
-	croak "Conjury::C::Compiler::$field-- no field exists"
+	croak __PACKAGE__, "::$field-- no field exists"
 	  unless exists($self->{$field});
 	
 	$self->{$field} = $set if defined($set);
@@ -127,7 +172,7 @@ my $cc_new_profile = sub {
 	my ($prefix, $factors, $c_file, $scanner, $parameters) = @_;
 	
 	my $profile;
-	my $profile_str = "Conjury::C::Compiler $prefix";
+	my $profile_str = __PACKAGE__ . " $prefix";
 	my @c_file_factors = fetch_spells Name => $c_file;
 	if (@c_file_factors) {
 		push @$factors, @c_file_factors;
@@ -172,52 +217,33 @@ my $cc_new_profile = sub {
 };
 
 sub object_spell {
-	my $self = shift;
-	my %arg = @_;
-	croak 'Conjury::C::Compiler::object_spell-- argument mismatch'
-	  unless (ref($self) && !(@_ % 2)
-			  && !grep $_ !~ /\A($cc_argmatch{object_spell})\Z/,
-			  keys(%arg));
+	my ($self, %arg) = @_;
+	my $error = $prototype{_object_spell_f()}->validate(\%arg);
+	croak _object_spell_f, "-- $error" if $error;
 
 	my $directory = $arg{Directory};
-	croak 'Conjury::C::Compiler::object_spell-- argument mismatch {Directory}'
-	  unless (!defined($directory) || !ref($directory));
-
 	my $c_file = $arg{Source};
-	croak 'Conjury::C::Compiler::object_spell-- argument mismatch {Source}'
-	  unless (defined($c_file) && !ref($c_file));
-
 	my $factors_ref = $arg{Factors};
-	croak 'Conjury::C::Compiler::object_spell-- argument mismatch {Factors}'
-	  unless (!defined($factors_ref) || ref($factors_ref) eq 'ARRAY');
 	my @factors = defined($factors_ref) ? @$factors_ref : ();
 
 	my $flag_map = $self->{Flag_Map};
 
 	my $defines = $arg{Defines};
 	$defines = { } unless defined($defines);
-	croak 'Conjury::C::Compiler::object_spell-- argument mismatch {Defines}'
-	  unless ref($defines) eq 'HASH';
 	my $flag_D = $flag_map->{D};
 	my @define_list = map {
 		my ($name, $value) = ($_, $defines->{$_});
-		croak 'Conjury::C::Compiler::object_spell-- definition value mismatch'
-		  unless (defined($value) && !ref($value));
 		$value eq '1' ? "$flag_D$name" : "$flag_D$name=$value";
 	} sort(keys(%$defines));
 	$defines = \@define_list;
 
 	my $includes = $arg{Includes};
 	$includes = [ ] unless defined($includes);
-	croak 'Conjury::C::Compiler::object_spell-- argument mismatch {Includes}'
-	  unless ref($includes) eq 'ARRAY';
 	my $flag_I = $flag_map->{I};
 	my @include_list = map "$flag_I$_", @$includes;
 	$includes = \@include_list;
 
 	my $options = $arg{Options};
-	croak 'Conjury::C::Compiler::object_spell-- argument mismatch {Options}'
-	  unless (!defined($options) || ref($options) eq 'ARRAY');
 	$options = defined($options) ? [ @$options ] : [ ];
 
 	my $cc_options = $self->{Options};
@@ -259,7 +285,8 @@ use Conjury::Core qw(%Option $Current_Context &cast_error &fetch_spells);
 use Carp qw(croak);
 use Config;
 
- my %ld_argmatch;
+sub _new_f()				{ __PACKAGE__ . '::new'					}
+sub _executable_spell_f()	{ __PACKAGE__ . '::executable_spell'	}
 
 BEGIN {
 	use vars qw($AUTOLOAD %Default);
@@ -295,46 +322,68 @@ BEGIN {
 		}
 
 		if ($verbose) {
-			print "Conjury::C::Default{Search_Rule}--\n";
+			print __PACKAGE__, "::Default{Search_Rule}--\n";
 			print "  library='$library'\n";
 			print "  binding='$binding'\n";
 			print "  search=[", join(',', (map "'$_'", @search)), "]\n";
-			print "  factors=[",
-			  join(',', (map "'$_->Product'", @factors)), "]\n";
+
+			my $factors_str = '';
+			for my $factor (@factors) {
+				$factors_str .= join(',', (map "'$_'", @{$factor->Product}));
+			}
+
+			print '  factors=[', $factors_str, "]\n";
 		}
 
 		return @factors;
 	};
 
-	$ld_argmatch{new} =
-	  join '|', qw(Program Options Flag_Map Bind_Rule Search_Rule Journal);
-
-	$ld_argmatch{executable_spell} =
-	  join '|', qw(Name Options Order Factors);
-
 	$Default{Order_Key_Match_} =
 	  join '|', qw(Objects Libraries Searches);
+
+	my $proto;
+
+	$proto = Conjury::Core::Prototype->new;
+	$proto->optional_arg
+	  (Program => \&Conjury::Core::Prototype::validate_scalar);
+	$proto->optional_arg
+	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+	$proto->optional_arg
+	  (Flag_Map => \&Conjury::Core::Prototype::validate_hash_of_scalars);
+	$proto->optional_arg
+	  (Bind_Rule => \&Conjury::Core::Prototype::validate_code);
+	$proto->optional_arg
+	  (Search_Rule => \&Conjury::Core::Prototype::validate_code);
+	$proto->optional_arg
+	  (Journal => \&Conjury::Core::Prototype::validate_hash);
+	$prototype{_new_f()} = $proto;
+
+	$proto = Conjury::Core::Prototype->new;
+	$proto->required_arg
+	  (Name => \&Conjury::Core::Prototype::validate_scalar);
+	$proto->required_arg
+	  (Order => \&Conjury::Core::Prototype::validate_array);
+	$proto->optional_arg
+	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+	$proto->optional_arg
+	  (Factors => \&Conjury::Core::Prototype::validate_array);
+	$prototype{_executable_spell_f()} = $proto;
 }
 
 sub new {
 	my ($class, %arg) = @_;
-	croak 'Conjury::C::Linker::new-- argument mismatch'
-	  unless ((@_ - 1) % 2 == 0
-			  && !grep $_ !~ /\A($ld_argmatch{new})\Z/, keys(%arg));
+	my $error = $prototype{_new_f()}->validate(\%arg);
+	croak _new_f, "-- $error" if $error;
 
 	$class = ref($class) if ref($class);
 
 	my $program = $arg{Program};
 	$program = $Config{ld} unless defined($program);
-	croak 'Conjury::C::Linker::new-- argument mismatch {Program}'
-	  unless !ref($program);
 
 	my $options = $arg{Options};
-	croak 'Conjury::C::Linker::new-- argument mismatch {Options}'
-	  unless (!defined($options) || ref($options) eq 'ARRAY');
 	if (defined($options)) {
 		$options = [ [ @$options ], [ ] ] if (!ref($options->[0]));
-		croak 'Conjury::C::Linker::new-- argument mismatch {Options} [length]'
+		croak _new_f, '-- argument mismatch {Options} [length]'
 		  unless (@$options == 2);
 	}
 	else {
@@ -342,8 +391,6 @@ sub new {
 	}
 
 	my $flag_map = $arg{Flag_Map};
-	croak 'Conjury::C::Linker::new-- argument mismatch {Includes}'
-	  unless(!defined($flag_map) || ref($flag_map) eq 'HASH');
 	my %my_flag_map = %{$Default{Flag_Map}};
 	if (defined($flag_map)) {
 		my ($key, $value);
@@ -356,17 +403,11 @@ sub new {
 
 	my $bind_rule = $arg{Bind_Rule};
 	$bind_rule = $Default{Bind_Rule} unless defined($bind_rule);
-	croak 'Conjury::C::Linker::new-- argument mismatch {Bind_Rule}'
-	  unless ref($bind_rule) eq 'CODE';
 
 	my $search_rule = $arg{Search_Rule};
 	$search_rule = $Default{Search_Rule} unless defined($search_rule);
-	croak 'Conjury::C::Linker::new-- argument mismatch {Search_Rule}'
-	  unless ref($search_rule) eq 'CODE';
 
 	my $journal = $arg{Journal};
-	croak 'Conjury::C::Linker::new-- argument mismatch {Journal}'
-	  unless (!defined($journal) || ref($journal));
 
 	my $self = { };
 	bless $self, $class;
@@ -389,9 +430,9 @@ sub AUTOLOAD {
 	$field =~ s/.*:://;
 	my ($self, $set) = @_;
 
-	croak "Conjury::C::Linker::$field-- argument mismatch"
+	croak __PACKAGE__, "::$field-- argument mismatch"
 	  unless ((@_ == 1 || @_ == 2) && ref($self));
-	croak "Conjury::C::Linker::$field-- no field exists"
+	croak __PACKAGE__, "::$field-- no field exists"
 	  unless exists($self->{$field});
 	
 	$self->{$field} = $set if defined($set);
@@ -403,9 +444,8 @@ sub process_ {
 
 	my $order_key_match = $self->{Order_Key_Match_};
 
-	croak 'Conjury::C::Linker::process_-- unrecognized order key'
-	  unless (!ref($key)
-			  && $key =~ /\A($order_key_match)\Z/);
+	croak __PACKAGE__, '::process_-- unrecognized order key'
+	  unless (!ref($key) && $key =~ /\A($order_key_match)\Z/);
 
 	$key = "process_${key}_";
 	eval { $self->$key($traveller, $value) };
@@ -416,7 +456,7 @@ sub process_ {
 sub process_Objects_ {
 	my ($self, $traveller, $value) = @_;
 
-	croak 'Conjury::C::Linker::process_Objects_-- argument mismatch'
+	croak __PACKAGE__, '::process_Objects_-- argument mismatch'
 	  unless (ref($value) eq 'ARRAY' && !grep ref, @$value);
 		
 	for (@$value) {
@@ -430,7 +470,7 @@ sub process_Objects_ {
 sub process_Libraries_ {
 	my ($self, $traveller, $value) = @_;
 
-	croak 'Conjury::C::Linker::process_Libraries_-- argument mismatch'
+	croak __PACKAGE__, '::process_Libraries_-- argument mismatch'
 	  unless (ref($value) eq 'ARRAY' && !grep ref, @$value);
 			
 	my $bind_rule = $self->{Bind_Rule};
@@ -454,7 +494,7 @@ sub process_Libraries_ {
 sub process_Searches_ {
 	my ($self, $traveller, $value) = @_;
 
-	croak 'Conjury::C::Linker::process_Searches_-- argument mismatch'
+	croak __PACKAGE__, '::process_Searches_-- argument mismatch'
 	  unless (ref($value) eq 'ARRAY' && !grep ref, @$value);
 
 	my $flag_map = $self->{Flag_Map};
@@ -471,29 +511,18 @@ sub process_Searches_ {
 }
 
 sub executable_spell {
-	my $self = shift;
-	my %arg = @_;
-	croak 'Conjury::C::Linker::executable_spell-- argument mismatch'
-	  unless (ref($self) && !(@_ % 2)
-			  && !grep $_ !~ /\A($ld_argmatch{executable_spell})\Z/,
-			  keys(%arg));
+	my ($self, %arg) = @_;
+	my $error = $prototype{_executable_spell_f()}->validate(\%arg);
+	croak _executable_spell_f, "-- $error" if $error;
 
 	my $directory = $arg{Directory};
-	croak 'Conjury::C::Linker::executable_spell'
-	  . ' -- argument mismatch {Directory}'
-	  unless (!defined($directory) || !ref($directory));
-
 	my $name = $arg{Name};
-	croak 'Conjury::C::Linker::executable_spell-- argument mismatch {Name}'
-	  unless (defined($name) && !ref($name));
 	my $product = "$name$Config{_exe}";
 
 	my $options = $arg{Options};
-	croak 'Conjury::C::Linker::new-- argument mismatch {Options}'
-	  unless (!defined($options) || ref($options) eq 'ARRAY');
 	if (defined($options)) {
 		$options = [ [ @$options ], [ ] ] if (!ref($options->[0]));
-		croak 'Conjury::C::Linker::new-- argument mismatch {Options} [length]'
+		croak _executable_spell_f, '-- argument mismatch {Options} [length]'
 		  unless (@$options == 2);
 	}
 	else {
@@ -505,14 +534,11 @@ sub executable_spell {
 	unshift @{$options->[1]}, @{$ld_options->[1]};
 
 	my $order_ref = $arg{Order};
-	croak 'Conjury::C::Linker::executable_spell-- argument mismatch[1] {Order}'
-	  unless (ref($order_ref) eq 'ARRAY' && @$order_ref > 1
-			  && !(@$order_ref % 2));
+	croak _executable_spell_f, '-- argument mismatch[1] {Order}'
+	  unless (@$order_ref > 1 && !(@$order_ref % 2));
 	my @order = @$order_ref;
 
 	my $factors_ref = $arg{Factors};
-	croak 'Conjury::C::Linker::executable_spell-- argument mismatch {Factors}'
-		unless (!defined($factors_ref) || ref($factors_ref) eq 'ARRAY');
 	my @factors = defined($factors_ref) ? @$factors_ref : ();
 
 	my @parameters = ( );
@@ -537,7 +563,7 @@ sub executable_spell {
 
 	my @command = ($program, @{$options->[0]}, $flag_o, $product, @parameters,
 				   @{$options->[1]});
-	my $profile = 'Conjury::C::Linker ' . join(' ', @command);
+	my $profile = join(' ', (__PACKAGE__, @command));
 
 	return Conjury::Core::Spell->new
 	  (Product => $product,
@@ -553,41 +579,55 @@ use Conjury::Core qw(%Option &cast_error);
 use Carp qw(croak);
 use Config;
 
-my %ar_argmatch;
+sub _new_f()			{ __PACKAGE__ . '::new'				}
+sub _library_spell_f()	{ __PACKAGE__ . '::library_spell'	}
 
 BEGIN {
 	use vars qw($AUTOLOAD %Default);
 
 	$Default{Flag_Map} = { map { $_ => "-$_" } qw(r) };
 
-	$ar_argmatch{new} =
-	  join '|', qw(Program Options Flag_Map Journal);
+	my $proto;
 
-	$ar_argmatch{library_spell} =
-	  join '|', qw(Directory Name Options Objects Factors);
+	$proto = Conjury::Core::Prototype->new;
+	$proto->optional_arg
+	  (Program => \&Conjury::Core::Prototype::validate_scalar);
+	$proto->optional_arg
+	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+	$proto->optional_arg
+	  (Flag_Map => \&Conjury::Core::Prototype::validate_hash_of_scalars);
+	$proto->optional_arg
+	  (Journal => \&Conjury::Core::Prototype::validate_hash);
+	$prototype{_new_f()} = $proto;
+
+	$proto = Conjury::Core::Prototype->new;
+	$proto->required_arg
+	  (Name => \&Conjury::Core::Prototype::validate_scalar);
+	$proto->required_arg
+	  (Objects => \&Conjury::Core::Prototype::validate_array_of_scalars);
+	$proto->optional_arg
+	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+	$proto->optional_arg
+	  (Directory => \&Conjury::Core::Prototype::validate_scalar);
+	$proto->optional_arg
+	  (Factors => \&Conjury::Core::Prototype::validate_array);
+	$prototype{_library_spell_f()} = $proto;
 }
 
 sub new {
 	my ($class, %arg) = @_;
-	croak 'Conjury::C::Archiver::new-- argument mismatch'
-	  unless ((@_ - 1) % 2 == 0
-			  && !grep $_ !~ /\A($ar_argmatch{new})\Z/, keys(%arg));
+	my $error = $prototype{_new_f()}->validate(\%arg);
+	croak _new_f, "-- $error" if $error;
 
 	$class = ref($class) if ref($class);
 
 	my $program = $arg{Program};
 	$program = $Config{ar} unless defined($program);
-	croak 'Conjury::C::Archiver::new-- argument mismatch {Program}'
-	  unless !ref($program);
 
 	my $options = $arg{Options};
-	croak 'Conjury::C::Archiver::new-- argument mismatch {Options}'
-	  unless (!defined($options) || ref($options) eq 'ARRAY');
 	$options = defined($options) ? [ @$options ] : [ ];
 
 	my $flag_map = $arg{Flag_Map};
-	croak 'Conjury::C::Archiver::new-- argument mismatch {Flag_Map}'
-	  unless(!defined($flag_map) || ref($flag_map) eq 'HASH');
 	my %my_flag_map = %{$Default{Flag_Map}};
 	if (defined($flag_map)) {
 		my ($key, $value);
@@ -598,8 +638,6 @@ sub new {
 	$flag_map = \%my_flag_map;
 
 	my $journal = $arg{Journal};
-	croak 'Conjury::C::Archiver::new-- argument mismatch {Journal}'
-	  unless (!defined($journal) || ref($journal));
 
 	my $self = { };
 	bless $self, $class;
@@ -619,9 +657,9 @@ sub AUTOLOAD {
 	$field =~ s/.*:://;
 	my ($self, $set) = @_;
 
-	croak "Conjury::C::Archiver::$field-- argument mismatch"
+	croak __PACKAGE__, "::$field-- argument mismatch"
 	  unless ((@_ == 1 || @_ == 2) && ref($self));
-	croak "Conjury::C::Archiver::$field-- no field exists"
+	croak __PACKAGE__, "::$field-- no field exists"
 	  unless exists($self->{$field});
 	
 	$self->{$field} = $set if defined($set);
@@ -629,36 +667,21 @@ sub AUTOLOAD {
 }
 
 sub library_spell {
-	my $self = shift;
-	my %arg = @_;
-	croak 'Conjury::C::Archiver::library_spell-- argument mismatch'
-	  unless (ref($self) && !(@_ % 2)
-			  && !grep $_ !~ /\A($ar_argmatch{library_spell})\Z/,
-			  keys(%arg));
+	my ($self, %arg) = @_;
+	my $error = $prototype{_library_spell_f()}->validate(\%arg);
+	croak _library_spell_f, "-- $error" if $error;
 
 	my $directory = $arg{Directory};
-	croak 'Conjury::C::Archiver::library_spell-- argument mismatch {Directory}'
-	  unless (!defined($directory) || !ref($directory));
-
 	my $name = $arg{Name};
-	croak 'Conjury::C::Archiver::library_spell-- argument mismatch {Product}'
-	  unless (defined($name) && !ref($name));
-
 	my $options = $arg{Options};
-	croak 'Conjury::C::Archiver::object_spell-- argument mismatch {Options}'
-	  unless (!defined($options) || ref($options) eq 'ARRAY');
 	$options = defined($options) ? [ @$options ] : [ ];
 
 	my $ar_options = $self->{Options};
 	unshift @$options, @$ar_options;
 
 	my $objects = $arg{Objects};
-	croak 'Conjury::C::Archiver::library_spell-- argument mismatch {Objects}'
-	  unless (ref($objects) eq 'ARRAY' && !grep ref, @$objects);
 
 	my $factors_ref = $arg{Factors};
-	croak 'Conjury::C::Archiver::library_spell-- argument mismatch {Factors}'
-	  unless (!defined($factors_ref) || ref($factors_ref) eq 'ARRAY');
 	my @factors = defined($factors_ref) ? @$factors_ref : ();
 
 	my $program = $self->{Program};
@@ -687,7 +710,7 @@ sub library_spell {
 		return $result;
 	};
 
-	my $profile = "Conjury::C::Archiver $command_str";
+	my $profile = __PACKAGE__ . ' ' . $command_str;
 
 	push @factors, @$objects;
 
@@ -784,7 +807,7 @@ sub c_object {
 		$compiler = $Default_Compiler;
 	}
 
-	croak 'Conjury::C::c_object-- argument mismatch {Compiler}'
+	croak __PACKAGE__, '::c_object-- argument mismatch {Compiler}'
 	  unless ref($compiler);
 
 	my $spell = eval { $compiler->object_spell(%arg) };
@@ -804,7 +827,7 @@ sub c_executable {
 		$linker = $Default_Linker;
 	}
 
-	croak 'Conjury::C::c_executable-- argument mismatch {Linker}'
+	croak __PACKAGE__, '::c_executable-- argument mismatch {Linker}'
 	  unless ref($linker);
 
 	my $spell = eval { $linker->executable_spell(%arg) };
@@ -824,7 +847,7 @@ sub c_static_library {
 		$archiver = $Default_Archiver;
 	}
 
-	croak 'Conjury::C::c_static_library-- argument mismatch {Archiver}'
+	croak __PACKAGE__, '::c_static_library-- argument mismatch {Archiver}'
 	  unless ref($archiver);
 
 	my $spell = eval { $archiver->library_spell(%arg) };

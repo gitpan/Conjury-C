@@ -1,7 +1,29 @@
+2000-04-19  james woodyatt  <jhw@wetware.com>
+
+	* (lib/Conjury/C.pm): Published to CPAN-- $VERSION=1.002
+	Updated to use the prototyping features of Conjury-Core-1.003 and
+	later.
+	
+	* (<*>): Changed terms of LICENSE to match those of the 'new and
+	improved' BSD-style licesne, i.e. does not have any advertising
+	clauses.
+
+2000-02-10  james woodyatt  <jhw@wetware.com>
+
+	* (lib/Conjury/C/Sun.pm): Added support for Sun Visual Workshop C/C++.
+
+2000-01-24  james woodyatt  <jhw@wetware.com>
+
+	* (lib/Conjury/C.pm): Incremented version number to 1.003.
+
+	* (lib): Moved C.pm and C/GNU.pm into a lib/Conjury/ subdirectory,
+	and made related changes to build code.
+
 1999-10-04  james woodyatt  <jhw@wetware.com>
 
-	*  (C.pm GNU.pm MANIFEST Makefile.PL README): Changed namespace
+	* (lib/Conjury/C.pm): Published to CPAN-- $VERSION=1.002
+	
+	* (C.pm GNU.pm MANIFEST Makefile.PL README): Changed namespace
 	from Conjure::xxxxx to Conjury::xxxxx.
-	(C.pm): Changed VERSION to 1.002.
 	(ChangeLog): Added file.
 
