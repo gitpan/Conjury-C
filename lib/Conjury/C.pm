@@ -35,248 +35,248 @@ package Conjury::C;
 use Conjury::Core qw(%Option);
 
 BEGIN {
-	require Conjury::Core::Prototype;
+    require Conjury::Core::Prototype;
 
-	use Exporter ();
-	use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+    use Exporter ();
+    use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
-	$VERSION = 1.003;
+    $VERSION = 1.004;
 
-	die "Conjury::C v$VERSION requires Conjury::Core v1.003 or later.\n"
-	  unless ($Conjury::Core::VERSION >= 1.003);
+    die "Conjury::C v$VERSION requires Conjury::Core v1.003 or later.\n"
+      unless ($Conjury::Core::VERSION >= 1.003);
 
-	@ISA = qw(Exporter);
-	@EXPORT = qw(&c_compiler &c_linker &c_archiver &c_object
-				 &c_executable &c_static_library);
+    @ISA = qw(Exporter);
+    @EXPORT = qw(&c_compiler &c_linker &c_archiver &c_object
+		 &c_executable &c_static_library);
 
-	use vars qw($Default_Compiler $Default_Linker $Default_Archiver);
-	use subs qw(c_compiler c_linker c_archiver c_object c_executable
-				c_static_library);
+    use vars qw($Default_Compiler $Default_Linker $Default_Archiver);
+    use subs qw(c_compiler c_linker c_archiver c_object c_executable
+		c_static_library);
 }
 
 
 package Conjury::C::Compiler;
 use Conjury::Core qw(%Option $Current_Context &cast_error &cast_warning
-					 &fetch_spells);
+		     &fetch_spells);
 use Carp qw(croak);
 use Config;
 
-sub _new_f()				{ __PACKAGE__ . '::new'				}
-sub _cc_new_profile_f()		{ __FILE__ . '/$cc_new_profile'		}
-sub _object_spell_f()		{ __PACKAGE__ . '::object_spell'	}
+sub _new_f()		{ __PACKAGE__ . '::new'	     }
+sub _cc_new_profile_f()     { __FILE__ . '/$cc_new_profile'     }
+sub _object_spell_f()       { __PACKAGE__ . '::object_spell'    }
 
 BEGIN {
-	use vars qw($AUTOLOAD %Default);
-	
-	$Default{Flag_Map} = { map { $_ => "-$_" } qw(I D c o) };
+    use vars qw($AUTOLOAD %Default);
+    
+    $Default{Flag_Map} = { map { $_ => "-$_" } qw(I D c o) };
 
-	$Default{Suffix_Rule} = sub {
-		my $name = shift;
-		$name =~ s/\.c\Z/$Config{_o}/i
-		  || cast_error "C source file '$name' doesn't have a .c extension.";
-		return $name;
-	};
+    $Default{Suffix_Rule} = sub {
+	my $name = shift;
+	$name =~ s/\.c\Z/$Config{_o}/i
+	  || cast_error "C source file '$name' doesn't have a .c extension.";
+	return $name;
+    };
 
-	my $proto;
+    my $proto;
 
-	$proto = Conjury::Core::Prototype->new;
-	$proto->optional_arg
-	  (Program => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->optional_arg
-	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
-	$proto->optional_arg
-	  (Flag_Map	=> \&Conjury::Core::Prototype::validate_hash_of_scalars);
-	$proto->optional_arg
-	  (Suffix_Rule => \&Conjury::Core::Prototype::validate_code);
-	$proto->optional_arg
-	  (Journal => \&Conjury::Core::Prototype::validate_hash);
-	$proto->optional_arg
-	  (Scanner => \&Conjury::Core::Prototype::validate_code);
-	$prototype{_new_f()} = $proto;
+    $proto = Conjury::Core::Prototype->new;
+    $proto->optional_arg
+      (Program => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->optional_arg
+      (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+    $proto->optional_arg
+      (Flag_Map => \&Conjury::Core::Prototype::validate_hash_of_scalars);
+    $proto->optional_arg
+      (Suffix_Rule => \&Conjury::Core::Prototype::validate_code);
+    $proto->optional_arg
+      (Journal => \&Conjury::Core::Prototype::validate_hash);
+    $proto->optional_arg
+      (Scanner => \&Conjury::Core::Prototype::validate_code);
+    $prototype{_new_f()} = $proto;
 
-	$proto = Conjury::Core::Prototype->new;
-	$proto->optional_arg
-	  (Directory => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->required_arg
-	  (Source => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->optional_arg
-	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
-	$proto->optional_arg
-	  (Includes => \&Conjury::Core::Prototype::validate_array_of_scalars);
-	$proto->optional_arg
-	  (Defines => \&Conjury::Core::Prototype::validate_hash_of_scalars);
-	$proto->optional_arg
-	  (Factors => \&Conjury::Core::Prototype::validate_array);
-	$prototype{_object_spell_f()} = $proto;
+    $proto = Conjury::Core::Prototype->new;
+    $proto->optional_arg
+      (Directory => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->required_arg
+      (Source => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->optional_arg
+      (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+    $proto->optional_arg
+      (Includes => \&Conjury::Core::Prototype::validate_array_of_scalars);
+    $proto->optional_arg
+      (Defines => \&Conjury::Core::Prototype::validate_hash_of_scalars);
+    $proto->optional_arg
+      (Factors => \&Conjury::Core::Prototype::validate_array);
+    $prototype{_object_spell_f()} = $proto;
 }
 
 sub new {
-	my ($class, %arg) = @_;
-	my $error = $prototype{_new_f()}->validate(\%arg);
-	croak _new_f, "-- $error" if $error;
+    my ($class, %arg) = @_;
+    my $error = $prototype{_new_f()}->validate(\%arg);
+    croak _new_f, "-- $error" if $error;
 
-	$class = ref($class) if ref($class);
+    $class = ref($class) if ref($class);
 
-	my $program = $arg{Program};
-	$program = $Config{cc} unless defined($program);
+    my $program = $arg{Program};
+    $program = $Config{cc} unless defined($program);
 
-	my $options = $arg{Options};
-	$options = defined($options) ? [ @$options ] : [ ];
+    my $options = $arg{Options};
+    $options = defined($options) ? [ @$options ] : [ ];
 
-	my $flag_map = $arg{Flag_Map};
-	my %my_flag_map = %{$Default{Flag_Map}};
-	if (defined $flag_map) {
-		my ($key, $value);
-		while (($key, $value) = each %$flag_map) {
-			$my_flag_map{$key} = $value;
-		}
+    my $flag_map = $arg{Flag_Map};
+    my %my_flag_map = %{$Default{Flag_Map}};
+    if (defined $flag_map) {
+	my ($key, $value);
+	while (($key, $value) = each %$flag_map) {
+	    $my_flag_map{$key} = $value;
 	}
-	$flag_map = \%my_flag_map;
+    }
+    $flag_map = \%my_flag_map;
 
-	my $suffix_rule = $arg{Suffix_Rule};
-	$suffix_rule = $Default{Suffix_Rule} unless defined($suffix_rule);
+    my $suffix_rule = $arg{Suffix_Rule};
+    $suffix_rule = $Default{Suffix_Rule} unless defined($suffix_rule);
 
-	my $journal = $arg{Journal};
-	my $scanner = $arg{Scanner};
-	
-	my $self = { };
-	bless $self, $class;
+    my $journal = $arg{Journal};
+    my $scanner = $arg{Scanner};
+    
+    my $self = { };
+    bless $self, $class;
 
-	$self->{Program} = $program;
-	$self->{Options} = $options;
-	$self->{Flag_Map} = $flag_map;
-	$self->{Suffix_Rule} = $suffix_rule;
-	$self->{Journal} = $journal;
-	$self->{Scanner} = $scanner;
+    $self->{Program} = $program;
+    $self->{Options} = $options;
+    $self->{Flag_Map} = $flag_map;
+    $self->{Suffix_Rule} = $suffix_rule;
+    $self->{Journal} = $journal;
+    $self->{Scanner} = $scanner;
 
-	return $self;
+    return $self;
 }
 
 sub DESTROY { }
 
 sub AUTOLOAD {
-	my $field = $AUTOLOAD;
-	$field =~ s/.*:://;
-	my ($self, $set) = @_;
+    my $field = $AUTOLOAD;
+    $field =~ s/.*:://;
+    my ($self, $set) = @_;
 
-	croak __PACKAGE__, "::$field-- argument mismatch"
-	  unless ((@_ == 1 || @_ == 2) && ref($self));
-	croak __PACKAGE__, "::$field-- no field exists"
-	  unless exists($self->{$field});
-	
-	$self->{$field} = $set if defined($set);
-	return $self->{$field};
+    croak __PACKAGE__, "::$field-- argument mismatch"
+      unless ((@_ == 1 || @_ == 2) && ref($self));
+    croak __PACKAGE__, "::$field-- no field exists"
+      unless exists($self->{$field});
+    
+    $self->{$field} = $set if defined($set);
+    return $self->{$field};
 }
 
 my $cc_new_profile = sub {
-	my ($prefix, $factors, $c_file, $scanner, $parameters) = @_;
-	
-	my $profile;
-	my $profile_str = __PACKAGE__ . " $prefix";
-	my @c_file_factors = fetch_spells Name => $c_file;
-	if (@c_file_factors) {
-		push @$factors, @c_file_factors;
-		$profile = $profile_str;
-	}
-	else {
-		$profile = sub {
-			my $result = $profile_str;
-			
-			my @c_file_stat = stat $c_file;
-			if (@c_file_stat) {
-				$result .= " $c_file_stat[9]";
-			}
-			else {
-				cast_error
-				  "No spells for '$c_file' ...is it a missing source file?";
-			}
-			
-			my @dependencies;
-			if (defined($scanner)) {
-				print "Scanning: $c_file\n" if exists($Option{'verbose'});
-				@dependencies = &$scanner($c_file, $parameters);
-			}
+    my ($prefix, $factors, $c_file, $scanner, $parameters) = @_;
+    
+    my $profile;
+    my $profile_str = __PACKAGE__ . " $prefix";
+    my @c_file_factors = fetch_spells Name => $c_file;
+    if (@c_file_factors) {
+	push @$factors, @c_file_factors;
+	$profile = $profile_str;
+    }
+    else {
+	$profile = sub {
+	    my $result = $profile_str;
+	    
+	    my @c_file_stat = stat $c_file;
+	    if (@c_file_stat) {
+		$result .= " $c_file_stat[9]";
+	    }
+	    else {
+		cast_error
+		  "No spells for '$c_file' ...is it a missing source file?";
+	    }
+	    
+	    my @dependencies;
+	    if (defined($scanner)) {
+		print "Scanning: $c_file\n" if exists($Option{'verbose'});
+		@dependencies = &$scanner($c_file, $parameters);
+	    }
 
-			for my $file (@dependencies) {
-				next if $file eq $c_file;
-				@c_file_stat = stat $file;
-				if (@c_file_stat) {
-					$result .= " $c_file_stat[9]";
-				}
-				else {
-					cast_warning
-					  "File '$c_file' depends on missing file '$file'.";
-				}
-			}
+	    for my $file (@dependencies) {
+		next if $file eq $c_file;
+		@c_file_stat = stat $file;
+		if (@c_file_stat) {
+		    $result .= " $c_file_stat[9]";
+		}
+		else {
+		    cast_warning
+		      "File '$c_file' depends on missing file '$file'.";
+		}
+	    }
 
-			return $result;
-		};
-	}
+	    return $result;
+	};
+    }
 
-	return $profile;
+    return $profile;
 };
 
 sub object_spell {
-	my ($self, %arg) = @_;
-	my $error = $prototype{_object_spell_f()}->validate(\%arg);
-	croak _object_spell_f, "-- $error" if $error;
+    my ($self, %arg) = @_;
+    my $error = $prototype{_object_spell_f()}->validate(\%arg);
+    croak _object_spell_f, "-- $error" if $error;
 
-	my $directory = $arg{Directory};
-	my $c_file = $arg{Source};
-	my $factors_ref = $arg{Factors};
-	my @factors = defined($factors_ref) ? @$factors_ref : ();
+    my $directory = $arg{Directory};
+    my $c_file = $arg{Source};
+    my $factors_ref = $arg{Factors};
+    my @factors = defined($factors_ref) ? @$factors_ref : ();
 
-	my $flag_map = $self->{Flag_Map};
+    my $flag_map = $self->{Flag_Map};
 
-	my $defines = $arg{Defines};
-	$defines = { } unless defined($defines);
-	my $flag_D = $flag_map->{D};
-	my @define_list = map {
-		my ($name, $value) = ($_, $defines->{$_});
-		$value eq '1' ? "$flag_D$name" : "$flag_D$name=$value";
-	} sort(keys(%$defines));
-	$defines = \@define_list;
+    my $defines = $arg{Defines};
+    $defines = { } unless defined($defines);
+    my $flag_D = $flag_map->{D};
+    my @define_list = map {
+	my ($name, $value) = ($_, $defines->{$_});
+	$value eq '1' ? "$flag_D$name" : "$flag_D$name=$value";
+    } sort(keys(%$defines));
+    $defines = \@define_list;
 
-	my $includes = $arg{Includes};
-	$includes = [ ] unless defined($includes);
-	my $flag_I = $flag_map->{I};
-	my @include_list = map "$flag_I$_", @$includes;
-	$includes = \@include_list;
+    my $includes = $arg{Includes};
+    $includes = [ ] unless defined($includes);
+    my $flag_I = $flag_map->{I};
+    my @include_list = map "$flag_I$_", @$includes;
+    $includes = \@include_list;
 
-	my $options = $arg{Options};
-	$options = defined($options) ? [ @$options ] : [ ];
+    my $options = $arg{Options};
+    $options = defined($options) ? [ @$options ] : [ ];
 
-	my $cc_options = $self->{Options};
-	unshift @$options, @$cc_options;
+    my $cc_options = $self->{Options};
+    unshift @$options, @$cc_options;
 
-	my $program = $self->{Program};
-	my $journal = $self->{Journal};
-	my $scanner = $self->{Scanner};
+    my $program = $self->{Program};
+    my $journal = $self->{Journal};
+    my $scanner = $self->{Scanner};
 
-	my $suffix_rule = $self->{Suffix_Rule};
-	my $o_file = &$suffix_rule($c_file);
+    my $suffix_rule = $self->{Suffix_Rule};
+    my $o_file = &$suffix_rule($c_file);
 
-	$o_file = File::Spec->catfile($directory, $o_file)
-	  if defined($directory);
-	$o_file = File::Spec->canonpath($o_file);
+    $o_file = File::Spec->catfile($directory, $o_file)
+      if defined($directory);
+    $o_file = File::Spec->canonpath($o_file);
 
-	my $flag_c = $flag_map->{c};
-	my $flag_o = $flag_map->{o};
+    my $flag_c = $flag_map->{c};
+    my $flag_o = $flag_map->{o};
 
-	my @parameters = (@$options, @$defines, @$includes);
-	my @command = ($program, @parameters, $flag_o, $o_file, $flag_c, $c_file);
+    my @parameters = (@$options, @$defines, @$includes);
+    my @command = ($program, @parameters, $flag_o, $o_file, $flag_c, $c_file);
 
-	my $command_str = join ' ', @command;
+    my $command_str = join ' ', @command;
 
-	my $profile = &$cc_new_profile($command_str, \@factors, $c_file, $scanner,
-								   \@parameters);
+    my $profile = &$cc_new_profile($command_str, \@factors, $c_file, $scanner,
+				   \@parameters);
 
-	return Conjury::Core::Spell->new
-	  (Product => $o_file,
-	   Factors => \@factors,
-	   Profile => $profile,
-	   Action => \@command,
-	   Journal => $journal);
+    return Conjury::Core::Spell->new
+      (Product => $o_file,
+       Factors => \@factors,
+       Profile => $profile,
+       Action => \@command,
+       Journal => $journal);
 }
 
 
@@ -285,292 +285,293 @@ use Conjury::Core qw(%Option $Current_Context &cast_error &fetch_spells);
 use Carp qw(croak);
 use Config;
 
-sub _new_f()				{ __PACKAGE__ . '::new'					}
-sub _executable_spell_f()	{ __PACKAGE__ . '::executable_spell'	}
+sub _new_f()		{ __PACKAGE__ . '::new'		 }
+sub _executable_spell_f()   { __PACKAGE__ . '::executable_spell'    }
 
 BEGIN {
-	use vars qw($AUTOLOAD %Default);
+    use vars qw($AUTOLOAD %Default);
 
-	my $verbose = exists $Option{'verbose'};
+    my $verbose = exists $Option{'verbose'};
 
-	$Default{Flag_Map} = { map { $_ => "-$_" } qw(o L l) };
+    $Default{Flag_Map} = { map { $_ => "-$_" } qw(o L l) };
 
-	$Default{Bind_Rule} = sub {
-		my ($library, $binding) = @_;
-		cast_error "No support for '$binding' binding."
-		  unless ($binding eq '' || $binding =~ /\A(static|dynamic)\Z/);
+    $Default{Bind_Rule} = sub {
+	my ($library, $binding) = @_;
+	cast_error "No support for '$binding' binding."
+	  unless ($binding eq '' || $binding =~ /\A(static|dynamic)\Z/);
 
-		my @result = ("lib${library}$Config{_a}");
-		unshift @result, "lib${library}.$Config{so}"
-		  unless $binding eq 'static';
-		return @result;
-	};
+	my @result = ("lib${library}$Config{_a}");
+	unshift @result, "lib${library}.$Config{so}"
+	  unless $binding eq 'static';
+	return @result;
+    };
 
-	$Default{Search_Rule} = sub {
-		my ($library, $bind_rule, $binding, @search) = @_;
+    $Default{Search_Rule} = sub {
+	my ($library, $bind_rule, $binding, @search) = @_;
 
-		my @files = &$bind_rule($library, $binding);
-		my @factors = ( );
-		
-	  outer:
-		for my $dir (@search) {
-			for my $file (@files) {
-				@factors =
-				  fetch_spells(Name => File::Spec->catfile($dir, $file));
-				last outer if @factors;
-			}
-		}
+	my @files = &$bind_rule($library, $binding);
+	my @factors = ( );
+	
+      outer:
+	for my $dir (@search) {
+	    for my $file (@files) {
+		@factors =
+		  fetch_spells(Name => File::Spec->catfile($dir, $file));
+		last outer if @factors;
+	    }
+	}
 
-		if ($verbose) {
-			print __PACKAGE__, "::Default{Search_Rule}--\n";
-			print "  library='$library'\n";
-			print "  binding='$binding'\n";
-			print "  search=[", join(',', (map "'$_'", @search)), "]\n";
+	if ($verbose) {
+	    print __PACKAGE__, "::Default{Search_Rule}--\n";
+	    print "  library='$library'\n";
+	    print "  binding='$binding'\n";
+	    print "  search=[", join(',', (map "'$_'", @search)), "]\n";
 
-			my $factors_str = '';
-			for my $factor (@factors) {
-				$factors_str .= join(',', (map "'$_'", @{$factor->Product}));
-			}
+	    my $factors_str = '';
+	    for my $factor (@factors) {
+		$factors_str .= join(',', (map "'$_'", @{$factor->Product}));
+	    }
 
-			print '  factors=[', $factors_str, "]\n";
-		}
+	    print '  factors=[', $factors_str, "]\n";
+	}
 
-		return @factors;
-	};
+	return @factors;
+    };
 
-	$Default{Order_Key_Match_} =
-	  join '|', qw(Objects Libraries Searches);
+    $Default{Order_Key_Match_} =
+      join '|', qw(Objects Libraries Searches);
 
-	my $proto;
+    my $proto;
 
-	$proto = Conjury::Core::Prototype->new;
-	$proto->optional_arg
-	  (Program => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->optional_arg
-	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
-	$proto->optional_arg
-	  (Flag_Map => \&Conjury::Core::Prototype::validate_hash_of_scalars);
-	$proto->optional_arg
-	  (Bind_Rule => \&Conjury::Core::Prototype::validate_code);
-	$proto->optional_arg
-	  (Search_Rule => \&Conjury::Core::Prototype::validate_code);
-	$proto->optional_arg
-	  (Journal => \&Conjury::Core::Prototype::validate_hash);
-	$prototype{_new_f()} = $proto;
+    $proto = Conjury::Core::Prototype->new;
+    $proto->optional_arg
+      (Program => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->optional_arg
+      (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+    $proto->optional_arg
+      (Flag_Map => \&Conjury::Core::Prototype::validate_hash_of_scalars);
+    $proto->optional_arg
+      (Bind_Rule => \&Conjury::Core::Prototype::validate_code);
+    $proto->optional_arg
+      (Search_Rule => \&Conjury::Core::Prototype::validate_code);
+    $proto->optional_arg
+      (Journal => \&Conjury::Core::Prototype::validate_hash);
+    $prototype{_new_f()} = $proto;
 
-	$proto = Conjury::Core::Prototype->new;
-	$proto->required_arg
-	  (Name => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->required_arg
-	  (Order => \&Conjury::Core::Prototype::validate_array);
-	$proto->optional_arg
-	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
-	$proto->optional_arg
-	  (Factors => \&Conjury::Core::Prototype::validate_array);
-	$prototype{_executable_spell_f()} = $proto;
+    $proto = Conjury::Core::Prototype->new;
+    $proto->required_arg
+      (Name => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->required_arg
+      (Order => \&Conjury::Core::Prototype::validate_array);
+    $proto->optional_arg
+      (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+    $proto->optional_arg
+      (Factors => \&Conjury::Core::Prototype::validate_array);
+    $prototype{_executable_spell_f()} = $proto;
 }
 
 sub new {
-	my ($class, %arg) = @_;
-	my $error = $prototype{_new_f()}->validate(\%arg);
-	croak _new_f, "-- $error" if $error;
+    my ($class, %arg) = @_;
+    my $error = $prototype{_new_f()}->validate(\%arg);
+    croak _new_f, "-- $error" if $error;
 
-	$class = ref($class) if ref($class);
+    $class = ref($class) if ref($class);
 
-	my $program = $arg{Program};
-	$program = $Config{ld} unless defined($program);
+    my $program = $arg{Program};
+    $program = $Config{ld} unless defined($program);
 
-	my $options = $arg{Options};
-	if (defined($options)) {
-		$options = [ [ @$options ], [ ] ] if (!ref($options->[0]));
-		croak _new_f, '-- argument mismatch {Options} [length]'
-		  unless (@$options == 2);
+    my $options = $arg{Options};
+    if (defined($options)) {
+	$options = [ [ @$options ], [ ] ] if (!ref($options->[0]));
+	croak _new_f, '-- argument mismatch {Options} [length]'
+	  unless (@$options == 2);
+    }
+    else {
+	$options = [ [ ], [ ] ];
+    }
+
+    my $flag_map = $arg{Flag_Map};
+    my %my_flag_map = %{$Default{Flag_Map}};
+    if (defined($flag_map)) {
+	my ($key, $value);
+	while (($key, $value) = each %$flag_map) {
+	    $my_flag_map{$key} = $value;
 	}
-	else {
-		$options = [ [ ], [ ] ];
-	}
+    }
+    $flag_map = \%my_flag_map;
+    my $flag_L = $flag_map->{L};
 
-	my $flag_map = $arg{Flag_Map};
-	my %my_flag_map = %{$Default{Flag_Map}};
-	if (defined($flag_map)) {
-		my ($key, $value);
-		while (($key, $value) = each %$flag_map) {
-			$my_flag_map{$key} = $value;
-		}
-	}
-	$flag_map = \%my_flag_map;
-	my $flag_L = $flag_map->{L};
+    my $bind_rule = $arg{Bind_Rule};
+    $bind_rule = $Default{Bind_Rule} unless defined($bind_rule);
 
-	my $bind_rule = $arg{Bind_Rule};
-	$bind_rule = $Default{Bind_Rule} unless defined($bind_rule);
+    my $search_rule = $arg{Search_Rule};
+    $search_rule = $Default{Search_Rule} unless defined($search_rule);
 
-	my $search_rule = $arg{Search_Rule};
-	$search_rule = $Default{Search_Rule} unless defined($search_rule);
+    my $journal = $arg{Journal};
 
-	my $journal = $arg{Journal};
+    my $self = { };
+    bless $self, $class;
 
-	my $self = { };
-	bless $self, $class;
+    $self->{Program} = $program;
+    $self->{Options} = $options;
+    $self->{Flag_Map} = $flag_map;
+    $self->{Bind_Rule} = $bind_rule;
+    $self->{Search_Rule} = $search_rule;
+    $self->{Journal} = $journal;
+    $self->{Order_Key_Match_} = $Default{Order_Key_Match_};
 
-	$self->{Program} = $program;
-	$self->{Options} = $options;
-	$self->{Flag_Map} = $flag_map;
-	$self->{Bind_Rule} = $bind_rule;
-	$self->{Search_Rule} = $search_rule;
-	$self->{Journal} = $journal;
-	$self->{Order_Key_Match_} = $Default{Order_Key_Match_};
-
-	return $self;
+    return $self;
 }
 
 sub DESTROY { }
 
 sub AUTOLOAD {
-	my $field = $AUTOLOAD;
-	$field =~ s/.*:://;
-	my ($self, $set) = @_;
+    my $field = $AUTOLOAD;
+    $field =~ s/.*:://;
+    my ($self, $set) = @_;
 
-	croak __PACKAGE__, "::$field-- argument mismatch"
-	  unless ((@_ == 1 || @_ == 2) && ref($self));
-	croak __PACKAGE__, "::$field-- no field exists"
-	  unless exists($self->{$field});
-	
-	$self->{$field} = $set if defined($set);
-	return $self->{$field};
+    croak __PACKAGE__, "::$field-- argument mismatch"
+      unless ((@_ == 1 || @_ == 2) && ref($self));
+    croak __PACKAGE__, "::$field-- no field exists"
+      unless exists($self->{$field});
+    
+    $self->{$field} = $set if defined($set);
+    return $self->{$field};
 }
 
 sub process_ {
-	my ($self, $traveller, $key, $value) = @_;
+    my ($self, $traveller, $key, $value) = @_;
 
-	my $order_key_match = $self->{Order_Key_Match_};
+    my $order_key_match = $self->{Order_Key_Match_};
 
-	croak __PACKAGE__, '::process_-- unrecognized order key'
-	  unless (!ref($key) && $key =~ /\A($order_key_match)\Z/);
+    croak __PACKAGE__, '::process_-- unrecognized order key'
+      unless (!ref($key) && $key =~ /\A($order_key_match)\Z/);
 
-	$key = "process_${key}_";
-	eval { $self->$key($traveller, $value) };
-	if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
-	undef;
+    $key = "process_${key}_";
+    eval { $self->$key($traveller, $value) };
+    if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
+    undef;
 }
 
 sub process_Objects_ {
-	my ($self, $traveller, $value) = @_;
+    my ($self, $traveller, $value) = @_;
 
-	croak __PACKAGE__, '::process_Objects_-- argument mismatch'
-	  unless (ref($value) eq 'ARRAY' && !grep ref, @$value);
-		
-	for (@$value) {
-		push @{$traveller->{parameters}}, $_;
-		push @{$traveller->{factors}}, $_;
-	}
+    croak __PACKAGE__, '::process_Objects_-- argument mismatch'
+      unless (ref($value) eq 'ARRAY' && !grep ref, @$value);
+	
+    for (@$value) {
+	push @{$traveller->{parameters}}, $_;
+	push @{$traveller->{factors}}, $_;
+    }
 
-	undef;
+    undef;
 }
 
 sub process_Libraries_ {
-	my ($self, $traveller, $value) = @_;
+    my ($self, $traveller, $value) = @_;
 
-	croak __PACKAGE__, '::process_Libraries_-- argument mismatch'
-	  unless (ref($value) eq 'ARRAY' && !grep ref, @$value);
-			
-	my $bind_rule = $self->{Bind_Rule};
-	my $search_rule = $self->{Search_Rule};
-	my $flag_map = $self->{Flag_Map};
-	my $flag_l = $flag_map->{l};
-	my $binding = $traveller->{binding};
-	$binding = '' unless defined($binding);
-	my $searches = $traveller->{searches};
-	$searches = [ ] unless defined($searches);
+    croak __PACKAGE__, '::process_Libraries_-- argument mismatch'
+      unless (ref($value) eq 'ARRAY' && !grep ref, @$value);
+	    
+    my $bind_rule = $self->{Bind_Rule};
+    my $search_rule = $self->{Search_Rule};
+    my $flag_map = $self->{Flag_Map};
+    my $flag_l = $flag_map->{l};
+    my $binding = $traveller->{binding};
+    $binding = '' unless defined($binding);
+    my $searches = $traveller->{searches};
+    $searches = [ ] unless defined($searches);
 
-	for (@$value) {
-		my @spells = &$search_rule($_, $bind_rule, $binding, @$searches);
-		push @{$traveller->{parameters}}, "$flag_l$_";
-		push @{$traveller->{factors}}, @spells;
-	}
+    for (@$value) {
+	my @spells = &$search_rule($_, $bind_rule, $binding, @$searches);
+	push @{$traveller->{parameters}}, "$flag_l$_";
+	push @{$traveller->{factors}}, @spells;
+    }
 
-	undef;
+    undef;
 }
 
 sub process_Searches_ {
-	my ($self, $traveller, $value) = @_;
+    my ($self, $traveller, $value) = @_;
 
-	croak __PACKAGE__, '::process_Searches_-- argument mismatch'
-	  unless (ref($value) eq 'ARRAY' && !grep ref, @$value);
+    croak __PACKAGE__, '::process_Searches_-- argument mismatch'
+      unless (ref($value) eq 'ARRAY' && !grep ref, @$value);
 
-	my $flag_map = $self->{Flag_Map};
-	my $flag_L = $flag_map->{L};
+    my $flag_map = $self->{Flag_Map};
+    my $flag_L = $flag_map->{L};
 
-	$traveller->{searches} = [ ] unless exists($traveller->{searches});
+    $traveller->{searches} = [ ] unless exists($traveller->{searches});
 
-	for (@$value) {
-		push @{$traveller->{searches}}, $_;
-		push @{$traveller->{parameters}}, "$flag_L$_";
-	}
+    for (@$value) {
+	push @{$traveller->{searches}}, $_;
+	push @{$traveller->{parameters}}, "$flag_L$_";
+    }
 
-	undef;
+    undef;
 }
 
 sub executable_spell {
-	my ($self, %arg) = @_;
-	my $error = $prototype{_executable_spell_f()}->validate(\%arg);
-	croak _executable_spell_f, "-- $error" if $error;
+    my ($self, %arg) = @_;
+    my $error = $prototype{_executable_spell_f()}->validate(\%arg);
+    croak _executable_spell_f, "-- $error" if $error;
 
-	my $directory = $arg{Directory};
-	my $name = $arg{Name};
-	my $product = "$name$Config{_exe}";
+    my $directory = $arg{Directory};
+    my $name = $arg{Name};
+    my $product = "$name$Config{_exe}";
 
-	my $options = $arg{Options};
-	if (defined($options)) {
-		$options = [ [ @$options ], [ ] ] if (!ref($options->[0]));
-		croak _executable_spell_f, '-- argument mismatch {Options} [length]'
-		  unless (@$options == 2);
-	}
-	else {
-		$options = [ [ ], [ ] ];
-	}
-	
-	my $ld_options = $self->{Options};
-	unshift @{$options->[0]}, @{$ld_options->[0]};
-	unshift @{$options->[1]}, @{$ld_options->[1]};
+    my $options = $arg{Options};
+    if (defined($options)) {
+	$options = [ [ @$options ], [ ] ] if (!ref($options->[0]));
+	croak _executable_spell_f, '-- argument mismatch {Options} [length]'
+	  unless (@$options == 2);
+    }
+    else {
+	$options = [ [ ], [ ] ];
+    }
+    
+    my $ld_options = $self->{Options};
+    unshift @{$options->[0]}, @{$ld_options->[0]};
+    unshift @{$options->[1]}, @{$ld_options->[1]};
 
-	my $order_ref = $arg{Order};
-	croak _executable_spell_f, '-- argument mismatch[1] {Order}'
-	  unless (@$order_ref > 1 && !(@$order_ref % 2));
-	my @order = @$order_ref;
+    my $order_ref = $arg{Order};
+    croak _executable_spell_f, '-- argument mismatch[1] {Order}'
+      unless (@$order_ref > 1 && !(@$order_ref % 2));
+    my @order = @$order_ref;
 
-	my $factors_ref = $arg{Factors};
-	my @factors = defined($factors_ref) ? @$factors_ref : ();
+    my $factors_ref = $arg{Factors};
+    my @factors = defined($factors_ref) ? @$factors_ref : ();
 
-	my @parameters = ( );
-	my %traveller;
-	$traveller{parameters} = \@parameters;
-	$traveller{factors} = \@factors;
+    my @parameters = ( );
+    my %traveller;
+    $traveller{parameters} = \@parameters;
+    $traveller{factors} = \@factors;
 
-	while (@order) {
-		eval { $self->process_(\%traveller, splice(@order, 0, 2)) };
-		if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
-	}
+    while (@order) {
+	eval { $self->process_(\%traveller, splice(@order, 0, 2)) };
+	if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
+    }
 
-	my $program = $self->{Program};
-	my $journal = $self->{Journal};
+    my $program = $self->{Program};
+    my $journal = $self->{Journal};
 
-	$product = File::Spec->catfile($directory, $product)
-	  if defined($directory);
-	$product = File::Spec->canonpath($product);
+    $product = File::Spec->catfile($directory, $product)
+      if defined($directory);
+    $product = File::Spec->canonpath($product);
 
-	my $flag_map = $self->{Flag_Map};
-	my $flag_o = $flag_map->{o};
+    my $flag_map = $self->{Flag_Map};
+    my $flag_o = $flag_map->{o};
 
-	my @command = ($program, @{$options->[0]}, $flag_o, $product, @parameters,
-				   @{$options->[1]});
-	my $profile = join(' ', (__PACKAGE__, @command));
+    my @command =
+	    ($program, @{$options->[0]}, $flag_o, $product, @parameters,
+	     @{$options->[1]});
+    my $profile = join(' ', (__PACKAGE__, @command));
 
-	return Conjury::Core::Spell->new
-	  (Product => $product,
-	   Factors => \@factors,
-	   Profile => $profile,
-	   Action => \@command,
-	   Journal => $journal);
+    return Conjury::Core::Spell->new
+      (Product => $product,
+       Factors => \@factors,
+       Profile => $profile,
+       Action => \@command,
+       Journal => $journal);
 }
 
 
@@ -579,147 +580,147 @@ use Conjury::Core qw(%Option &cast_error);
 use Carp qw(croak);
 use Config;
 
-sub _new_f()			{ __PACKAGE__ . '::new'				}
-sub _library_spell_f()	{ __PACKAGE__ . '::library_spell'	}
+sub _new_f()	    { __PACKAGE__ . '::new'	     }
+sub _library_spell_f()  { __PACKAGE__ . '::library_spell'   }
 
 BEGIN {
-	use vars qw($AUTOLOAD %Default);
+    use vars qw($AUTOLOAD %Default);
 
-	$Default{Flag_Map} = { map { $_ => "-$_" } qw(r) };
+    $Default{Flag_Map} = { map { $_ => "-$_" } qw(r) };
 
-	my $proto;
+    my $proto;
 
-	$proto = Conjury::Core::Prototype->new;
-	$proto->optional_arg
-	  (Program => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->optional_arg
-	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
-	$proto->optional_arg
-	  (Flag_Map => \&Conjury::Core::Prototype::validate_hash_of_scalars);
-	$proto->optional_arg
-	  (Journal => \&Conjury::Core::Prototype::validate_hash);
-	$prototype{_new_f()} = $proto;
+    $proto = Conjury::Core::Prototype->new;
+    $proto->optional_arg
+      (Program => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->optional_arg
+      (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+    $proto->optional_arg
+      (Flag_Map => \&Conjury::Core::Prototype::validate_hash_of_scalars);
+    $proto->optional_arg
+      (Journal => \&Conjury::Core::Prototype::validate_hash);
+    $prototype{_new_f()} = $proto;
 
-	$proto = Conjury::Core::Prototype->new;
-	$proto->required_arg
-	  (Name => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->required_arg
-	  (Objects => \&Conjury::Core::Prototype::validate_array_of_scalars);
-	$proto->optional_arg
-	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
-	$proto->optional_arg
-	  (Directory => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->optional_arg
-	  (Factors => \&Conjury::Core::Prototype::validate_array);
-	$prototype{_library_spell_f()} = $proto;
+    $proto = Conjury::Core::Prototype->new;
+    $proto->required_arg
+      (Name => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->required_arg
+      (Objects => \&Conjury::Core::Prototype::validate_array_of_scalars);
+    $proto->optional_arg
+      (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+    $proto->optional_arg
+      (Directory => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->optional_arg
+      (Factors => \&Conjury::Core::Prototype::validate_array);
+    $prototype{_library_spell_f()} = $proto;
 }
 
 sub new {
-	my ($class, %arg) = @_;
-	my $error = $prototype{_new_f()}->validate(\%arg);
-	croak _new_f, "-- $error" if $error;
+    my ($class, %arg) = @_;
+    my $error = $prototype{_new_f()}->validate(\%arg);
+    croak _new_f, "-- $error" if $error;
 
-	$class = ref($class) if ref($class);
+    $class = ref($class) if ref($class);
 
-	my $program = $arg{Program};
-	$program = $Config{ar} unless defined($program);
+    my $program = $arg{Program};
+    $program = $Config{ar} unless defined($program);
 
-	my $options = $arg{Options};
-	$options = defined($options) ? [ @$options ] : [ ];
+    my $options = $arg{Options};
+    $options = defined($options) ? [ @$options ] : [ ];
 
-	my $flag_map = $arg{Flag_Map};
-	my %my_flag_map = %{$Default{Flag_Map}};
-	if (defined($flag_map)) {
-		my ($key, $value);
-		while (($key, $value) = each %$flag_map) {
-			$my_flag_map{$key} = $value;
-		}
+    my $flag_map = $arg{Flag_Map};
+    my %my_flag_map = %{$Default{Flag_Map}};
+    if (defined($flag_map)) {
+	my ($key, $value);
+	while (($key, $value) = each %$flag_map) {
+	    $my_flag_map{$key} = $value;
 	}
-	$flag_map = \%my_flag_map;
+    }
+    $flag_map = \%my_flag_map;
 
-	my $journal = $arg{Journal};
+    my $journal = $arg{Journal};
 
-	my $self = { };
-	bless $self, $class;
+    my $self = { };
+    bless $self, $class;
 
-	$self->{Program} = $program;
-	$self->{Options} = $options;
-	$self->{Flag_Map} = $flag_map;
-	$self->{Journal} = $journal;
+    $self->{Program} = $program;
+    $self->{Options} = $options;
+    $self->{Flag_Map} = $flag_map;
+    $self->{Journal} = $journal;
 
-	return $self;
+    return $self;
 }
 
 sub DESTROY { }
 
 sub AUTOLOAD {
-	my $field = $AUTOLOAD;
-	$field =~ s/.*:://;
-	my ($self, $set) = @_;
+    my $field = $AUTOLOAD;
+    $field =~ s/.*:://;
+    my ($self, $set) = @_;
 
-	croak __PACKAGE__, "::$field-- argument mismatch"
-	  unless ((@_ == 1 || @_ == 2) && ref($self));
-	croak __PACKAGE__, "::$field-- no field exists"
-	  unless exists($self->{$field});
-	
-	$self->{$field} = $set if defined($set);
-	return $self->{$field};
+    croak __PACKAGE__, "::$field-- argument mismatch"
+      unless ((@_ == 1 || @_ == 2) && ref($self));
+    croak __PACKAGE__, "::$field-- no field exists"
+      unless exists($self->{$field});
+    
+    $self->{$field} = $set if defined($set);
+    return $self->{$field};
 }
 
 sub library_spell {
-	my ($self, %arg) = @_;
-	my $error = $prototype{_library_spell_f()}->validate(\%arg);
-	croak _library_spell_f, "-- $error" if $error;
+    my ($self, %arg) = @_;
+    my $error = $prototype{_library_spell_f()}->validate(\%arg);
+    croak _library_spell_f, "-- $error" if $error;
 
-	my $directory = $arg{Directory};
-	my $name = $arg{Name};
-	my $options = $arg{Options};
-	$options = defined($options) ? [ @$options ] : [ ];
+    my $directory = $arg{Directory};
+    my $name = $arg{Name};
+    my $options = $arg{Options};
+    $options = defined($options) ? [ @$options ] : [ ];
 
-	my $ar_options = $self->{Options};
-	unshift @$options, @$ar_options;
+    my $ar_options = $self->{Options};
+    unshift @$options, @$ar_options;
 
-	my $objects = $arg{Objects};
+    my $objects = $arg{Objects};
 
-	my $factors_ref = $arg{Factors};
-	my @factors = defined($factors_ref) ? @$factors_ref : ();
+    my $factors_ref = $arg{Factors};
+    my @factors = defined($factors_ref) ? @$factors_ref : ();
 
-	my $program = $self->{Program};
-	my $journal = $self->{Journal};
+    my $program = $self->{Program};
+    my $journal = $self->{Journal};
 
-	my $product = "lib${name}$Config{_a}";
-	$product = File::Spec->catfile($directory, $product)
-	  if defined($directory);
-	$product = File::Spec->canonpath($product);
+    my $product = "lib${name}$Config{_a}";
+    $product = File::Spec->catfile($directory, $product)
+      if defined($directory);
+    $product = File::Spec->canonpath($product);
 
-	my $flag_map = $self->{Flag_Map};
-	my $flag_r = $flag_map->{r};
+    my $flag_map = $self->{Flag_Map};
+    my $flag_r = $flag_map->{r};
 
-	my @command = ($program, $flag_r, @$options, $product, @$objects);
-	my $command_str = join ' ', @command;
+    my @command = ($program, $flag_r, @$options, $product, @$objects);
+    my $command_str = join ' ', @command;
 
-	my $action = sub {
-		print "$command_str\n";
+    my $action = sub {
+	print "$command_str\n";
 
-		my $result;
-		if (!exists($Option{'preview'})) {
-			unlink $product;
-			$result = system @command;
-		}
+	my $result;
+	if (!exists($Option{'preview'})) {
+	    unlink $product;
+	    $result = system @command;
+	}
 
-		return $result;
-	};
+	return $result;
+    };
 
-	my $profile = __PACKAGE__ . ' ' . $command_str;
+    my $profile = __PACKAGE__ . ' ' . $command_str;
 
-	push @factors, @$objects;
+    push @factors, @$objects;
 
-	return Conjury::Core::Spell->new
-	  (Product => $product,
-	   Factors => \@factors,
-	   Profile => $profile,
-	   Action => $action,
-	   Journal => $journal);
+    return Conjury::Core::Spell->new
+      (Product => $product,
+       Factors => \@factors,
+       Profile => $profile,
+       Action => $action,
+       Journal => $journal);
 }
 
 
@@ -727,132 +728,132 @@ package Conjury::C;
 use Carp qw(croak);
 
 sub c_compiler {
-	my %arg = @_;
+    my %arg = @_;
 
-	my $vendor = $arg{Vendor};
-	delete $arg{Vendor};
-	
-	my $cc;
-	if (defined($vendor)) {
-		my $package = "Conjury::C::$vendor";
-		eval "require $package";
-		die $@ if $@;
+    my $vendor = $arg{Vendor};
+    delete $arg{Vendor};
+    
+    my $cc;
+    if (defined($vendor)) {
+	my $package = "Conjury::C::$vendor";
+	eval "require $package";
+	die $@ if $@;
 
-		my $class = "${package}::Compiler";
-		$cc = eval { $class->new(%arg) };
-	}
-	else {
-		$cc = eval { Conjury::C::Compiler->new(%arg) };
-	}
+	my $class = "${package}::Compiler";
+	$cc = eval { $class->new(%arg) };
+    }
+    else {
+	$cc = eval { Conjury::C::Compiler->new(%arg) };
+    }
 
-	if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
-	return $cc;
+    if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
+    return $cc;
 }
 
 sub c_linker {
-	my %arg = @_;
+    my %arg = @_;
 
-	my $vendor = $arg{Vendor};
-	delete $arg{Vendor};
-	
-	my $cc;
-	if (defined($vendor)) {
-		my $package = "Conjury::C::$vendor";
-		eval "require $package";
-		die $@ if $@;
+    my $vendor = $arg{Vendor};
+    delete $arg{Vendor};
+    
+    my $cc;
+    if (defined($vendor)) {
+	my $package = "Conjury::C::$vendor";
+	eval "require $package";
+	die $@ if $@;
 
-		my $class = "${package}::Linker";
-		$cc = eval { $class->new(%arg) };
-	}
-	else {
-		$cc = eval { Conjury::C::Linker->new(%arg) };
-	}
+	my $class = "${package}::Linker";
+	$cc = eval { $class->new(%arg) };
+    }
+    else {
+	$cc = eval { Conjury::C::Linker->new(%arg) };
+    }
 
-	if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
-	return $cc;
+    if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
+    return $cc;
 }
 
 sub c_archiver {
-	my %arg = @_;
+    my %arg = @_;
 
-	my $vendor = $arg{Vendor};
-	delete $arg{Vendor};
-	
-	my $cc;
-	if (defined($vendor)) {
-		my $package = "Conjury::C::$vendor";
-		eval "require $package";
-		die $@ if $@;
+    my $vendor = $arg{Vendor};
+    delete $arg{Vendor};
+    
+    my $cc;
+    if (defined($vendor)) {
+	my $package = "Conjury::C::$vendor";
+	eval "require $package";
+	die $@ if $@;
 
-		my $class = "${package}::Archiver";
-		$cc = eval { $class->new(%arg) };
-	}
-	else {
-		$cc = eval { Conjury::C::Archiver->new(%arg) };
-	}
+	my $class = "${package}::Archiver";
+	$cc = eval { $class->new(%arg) };
+    }
+    else {
+	$cc = eval { Conjury::C::Archiver->new(%arg) };
+    }
 
-	if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
-	return $cc;
+    if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
+    return $cc;
 }
 
 sub c_object {
-	my %arg = @_;
+    my %arg = @_;
 
-	my $compiler = $arg{Compiler};
-	delete $arg{Compiler};
+    my $compiler = $arg{Compiler};
+    delete $arg{Compiler};
 
-	if (!defined($compiler)) {
-		$Default_Compiler = Conjury::C::Compiler->new
-		  unless defined($Default_Compiler);
-		$compiler = $Default_Compiler;
-	}
+    if (!defined($compiler)) {
+	$Default_Compiler = Conjury::C::Compiler->new
+	  unless defined($Default_Compiler);
+	$compiler = $Default_Compiler;
+    }
 
-	croak __PACKAGE__, '::c_object-- argument mismatch {Compiler}'
-	  unless ref($compiler);
+    croak __PACKAGE__, '::c_object-- argument mismatch {Compiler}'
+      unless ref($compiler);
 
-	my $spell = eval { $compiler->object_spell(%arg) };
-	if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
-	return wantarray ? @{$spell->Product} : $spell;
+    my $spell = eval { $compiler->object_spell(%arg) };
+    if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
+    return wantarray ? @{$spell->Product} : $spell;
 }
 
 sub c_executable {
-	my %arg = @_;
+    my %arg = @_;
 
-	my $linker = $arg{Linker};
-	delete $arg{Linker};
+    my $linker = $arg{Linker};
+    delete $arg{Linker};
 
-	if (!defined($linker)) {
-		$Default_Linker = Conjury::C::Linker->new
-		  unless defined($Default_Linker);
-		$linker = $Default_Linker;
-	}
+    if (!defined($linker)) {
+	$Default_Linker = Conjury::C::Linker->new
+	  unless defined($Default_Linker);
+	$linker = $Default_Linker;
+    }
 
-	croak __PACKAGE__, '::c_executable-- argument mismatch {Linker}'
-	  unless ref($linker);
+    croak __PACKAGE__, '::c_executable-- argument mismatch {Linker}'
+      unless ref($linker);
 
-	my $spell = eval { $linker->executable_spell(%arg) };
-	if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
-	return wantarray ? @{$spell->Product} : $spell;
+    my $spell = eval { $linker->executable_spell(%arg) };
+    if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
+    return wantarray ? @{$spell->Product} : $spell;
 }
 
 sub c_static_library {
-	my %arg = @_;
+    my %arg = @_;
 
-	my $archiver = $arg{Archiver};
-	delete $arg{Archiver};
+    my $archiver = $arg{Archiver};
+    delete $arg{Archiver};
 
-	if (!defined($archiver)) {
-		$Default_Archiver = Conjury::C::Archiver->new
-		  unless defined($Default_Archiver);
-		$archiver = $Default_Archiver;
-	}
+    if (!defined($archiver)) {
+	$Default_Archiver = Conjury::C::Archiver->new
+	  unless defined($Default_Archiver);
+	$archiver = $Default_Archiver;
+    }
 
-	croak __PACKAGE__, '::c_static_library-- argument mismatch {Archiver}'
-	  unless ref($archiver);
+    croak __PACKAGE__, '::c_static_library-- argument mismatch {Archiver}'
+      unless ref($archiver);
 
-	my $spell = eval { $archiver->library_spell(%arg) };
-	if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
-	return wantarray ? @{$spell->Product} : $spell;
+    my $spell = eval { $archiver->library_spell(%arg) };
+    if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
+    return wantarray ? @{$spell->Product} : $spell;
 }
 
 1;
@@ -878,9 +879,9 @@ Conjury::C - Perl Conjury with C/C++ compilers, linkers and archivers
     Directory => I<directory>,
     Name => I<output-filename>,
     Order => [
-	Searches => [ I<dir1>, I<dir2>, ... ],
-	Objects => [ I<obj1>, I<obj2>, ... ],
-	Libraries => [ I<lib1>, I<lib2>, ...] ],
+    Searches => [ I<dir1>, I<dir2>, ... ],
+    Objects => [ I<obj1>, I<obj2>, ... ],
+    Libraries => [ I<lib1>, I<lib2>, ...] ],
     Linker => I<linker>,
     Options => [ I<opt1>, I<opt2>, ... ],
     Factors => [ I<factor1>, I<factors2>, ... ]
@@ -898,7 +899,7 @@ Conjury::C - Perl Conjury with C/C++ compilers, linkers and archivers
     Options => [ I<opt1>, I<opt2>, ... ],
     Journal => I<journal>,
     Flag_Map => { 'I' => I<include-flag>, 'D' => I<define-flag>,
-	          'c' => I<source-flag>, 'o' => I<object-flag> },
+	      'c' => I<source-flag>, 'o' => I<object-flag> },
     Suffix_Rule => sub { my ($name) = @_; ... return $result },
     Scanner => sub { my ($c_file, $args) = @_; ... return @result };
 
@@ -909,11 +910,11 @@ Conjury::C - Perl Conjury with C/C++ compilers, linkers and archivers
     Options => [ I<opt1>, I<opt2>, ... ],
     Journal => I<journal>,
     Flag_Map => { 'l' => I<link-flag>, 'L' => I<search-flag>,
-	          'o' => I<output-flag> },
+	      'o' => I<output-flag> },
     Bind_Rule => sub { my ($lib, $bind) = @_;
-	               ... return @result },
+		   ... return @result },
     Search_Rule => sub { my ($lib, $rule, $bind, @search) = @_;
-	                 ... return @factors };
+		     ... return @factors };
 
   c_linker Vendor => I<vendor>, ...
 

@@ -34,16 +34,16 @@ my (%prototype, %verifier);
 package Conjury::C::Sun;
 
 BEGIN {
-	use Conjury::C;
-	use vars qw(@ISA);
-	@ISA = qw(Conjury::C);
+    use Conjury::C;
+    use vars qw(@ISA);
+    @ISA = qw(Conjury::C);
 
-	$verifier{suncc_language} = sub {
-		my ($x, $y) = (shift, undef);
-		$y = q/not 'c' or 'c++'/
-		  unless ($x =~ m/\A(c|c\+\+)\Z/i);
-		return $y;
-	};
+    $verifier{suncc_language} = sub {
+	my ($x, $y) = (shift, undef);
+	$y = q/not 'c' or 'c++'/
+	  unless ($x =~ m/\A(c|c\+\+)\Z/i);
+	return $y;
+    };
 }
 
 package Conjury::C::Sun::Compiler;
@@ -51,98 +51,98 @@ use vars qw(@ISA);
 use Carp qw(croak);
 use Conjury::Core qw(cast_error %Option);
 
-sub _new_f()	{ __PACKAGE__ . '::new'		}
+sub _new_f()    { __PACKAGE__ . '::new'     }
 
 BEGIN {
-	@ISA = qw(Conjury::C::Compiler);
+    @ISA = qw(Conjury::C::Compiler);
 
-	my $proto;
+    my $proto;
 
-	$proto = Conjury::Core::Prototype->new;
-	$proto->optional_arg
-	  (Program => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->optional_arg
-	  (No_Scanner => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->optional_arg
-	  (Language => $verifier{suncc_language});
-	$proto->optional_arg
-	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
-	$proto->optional_arg
-	  (Journal => \&Conjury::Core::Prototype::validate_hash);
-	$prototype{_new_f()} = $proto;
+    $proto = Conjury::Core::Prototype->new;
+    $proto->optional_arg
+      (Program => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->optional_arg
+      (No_Scanner => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->optional_arg
+      (Language => $verifier{suncc_language});
+    $proto->optional_arg
+      (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+    $proto->optional_arg
+      (Journal => \&Conjury::Core::Prototype::validate_hash);
+    $prototype{_new_f()} = $proto;
 }
 
 my $suncc_scanner = sub {
-	my ($program, $c_file, $parameters) = @_;
+    my ($program, $c_file, $parameters) = @_;
 
-	my $verbose = exists $Option{'verbose'};
-	my $command = "$program";
-	for (@$parameters) {
-		$command .= ' ';
-		$command .= /\s/ ? "'$_'" : $_;
-	}
-	$command .= " -xM1 $c_file";
+    my $verbose = exists $Option{'verbose'};
+    my $command = "$program";
+    for (@$parameters) {
+	$command .= ' ';
+	$command .= /\s/ ? "'$_'" : $_;
+    }
+    $command .= " -xM1 $c_file";
 
-	print "scanning $c_file ...\n";
-	print "$command\n" if $verbose;
+    print "scanning $c_file ...\n";
+    print "$command\n" if $verbose;
 
-	cast_error "Unable to scan file '$c_file'"
-	  unless open(PIPE, "$command |");
-	my @make_rule = <PIPE>;
-	close PIPE || cast_error 'Scan failed.';
+    cast_error "Unable to scan file '$c_file'"
+      unless open(PIPE, "$command |");
+    my @make_rule = <PIPE>;
+    close PIPE || cast_error 'Scan failed.';
 
-	print @make_rule if $verbose;
-	
-	for (@make_rule) {
-		chomp;
-		s/\s*\\?$//;
-		s/^\S+:\s*//;
-	}
+    print @make_rule if $verbose;
+    
+    for (@make_rule) {
+	chomp;
+	s/\s*\\?$//;
+	s/^\S+:\s*//;
+    }
 
-	return split('\s+', join(' ', @make_rule));
+    return split('\s+', join(' ', @make_rule));
 };
 
 sub new {
-	my ($class, %arg) = @_;
-	my $error = $prototype{_new_f()}->validate(\%arg);
-	croak _new_f, "-- $error" if $error;
+    my ($class, %arg) = @_;
+    my $error = $prototype{_new_f()}->validate(\%arg);
+    croak _new_f, "-- $error" if $error;
 
-	$class = ref($class) if ref($class);
+    $class = ref($class) if ref($class);
 
-	my $program = $arg{Program};
-	$program = 'cc' unless defined($program);
+    my $program = $arg{Program};
+    $program = 'cc' unless defined($program);
 
-	my $language = $arg{Language};
-	$language = 'c' unless defined($language);
-	$language = lc($language);
-	$program =~ s/cc/CC/ if $language eq 'c++';
+    my $language = $arg{Language};
+    $language = 'c' unless defined($language);
+    $language = lc($language);
+    $program =~ s/cc/CC/ if $language eq 'c++';
 
-	my $no_scanner = $arg{No_Scanner};
-	my $journal = $arg{Journal};
-	my $scanner = undef;
+    my $no_scanner = $arg{No_Scanner};
+    my $journal = $arg{Journal};
+    my $scanner = undef;
 
-	$scanner = sub { &$suncc_scanner($program, @_) }
-	  if (defined($journal) && !defined($no_scanner));
+    $scanner = sub { &$suncc_scanner($program, @_) }
+      if (defined($journal) && $no_scanner);
 
-	my $suffix_rule = sub {
-		my $name = shift;
-		$name .= '.o' unless $name =~ s/\.(c|C|cc|cxx|c\+\+|m|i|ii|s|S)\Z/.o/;
-		return $name;
-	};
+    my $suffix_rule = sub {
+	my $name = shift;
+	$name .= '.o' unless $name =~ s/\.(c|C|cc|cxx|c\+\+|m|i|ii|s|S)\Z/.o/;
+	return $name;
+    };
 
-	my $self = eval {
-	  Conjury::C::Compiler->new
-		(Program => $program,
-		 Suffix_Rule => $suffix_rule,
-		 Options => $arg{Options},
-		 Scanner => $scanner,
-		 Journal => $journal);
-	};
-	if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
+    my $self = eval {
+      Conjury::C::Compiler->new
+	(Program => $program,
+	 Suffix_Rule => $suffix_rule,
+	 Options => $arg{Options},
+	 Scanner => $scanner,
+	 Journal => $journal);
+    };
+    if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
 
-	$self->{Language} = $language;
+    $self->{Language} = $language;
 
-	bless $self, $class;
+    bless $self, $class;
 }
 
 
@@ -150,52 +150,52 @@ package Conjury::C::Sun::Linker;
 use vars qw(@ISA);
 use Carp qw(croak);
 
-sub _new_f()	{ __PACKAGE__ . '::new'		}
+sub _new_f()    { __PACKAGE__ . '::new'     }
 
 BEGIN {
-	@ISA = qw(Conjury::C::Linker);
+    @ISA = qw(Conjury::C::Linker);
 
-	my $proto;
+    my $proto;
 
-	$proto = Conjury::Core::Prototype->new;
-	$proto->optional_arg
-	  (Program => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->optional_arg
-	  (No_Scanner => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->optional_arg
-	  (Language => $verifier{suncc_language});
-	$proto->optional_arg
-	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
-	$proto->optional_arg
-	  (Journal => \&Conjury::Core::Prototype::validate_hash);
-	$prototype{_new_f()} = $proto;
+    $proto = Conjury::Core::Prototype->new;
+    $proto->optional_arg
+      (Program => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->optional_arg
+      (No_Scanner => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->optional_arg
+      (Language => $verifier{suncc_language});
+    $proto->optional_arg
+      (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+    $proto->optional_arg
+      (Journal => \&Conjury::Core::Prototype::validate_hash);
+    $prototype{_new_f()} = $proto;
 }
 
 sub new {
-	my ($class, %arg) = @_;
-	my $error = $prototype{_new_f()}->validate(\%arg);
-	croak _new_f, "-- $error" if $error;
+    my ($class, %arg) = @_;
+    my $error = $prototype{_new_f()}->validate(\%arg);
+    croak _new_f, "-- $error" if $error;
 
-	$class = ref($class) if ref($class);
+    $class = ref($class) if ref($class);
 
-	my $program = $arg{Program};
-	$program = 'cc' unless defined($program);
+    my $program = $arg{Program};
+    $program = 'cc' unless defined($program);
 
-	my $language = $arg{Language};
-	$language = 'c' unless defined($language);
-	$language = lc($language);
-	$program =~ s/cc/CC/ if $language eq 'c++';
+    my $language = $arg{Language};
+    $language = 'c' unless defined($language);
+    $language = lc($language);
+    $program =~ s/cc/CC/ if $language eq 'c++';
 
-	my $self = eval {
-	  Conjury::C::Linker->new
-		(Program => $program,
-		 Options => $arg{Options},
-		 Journal => $arg{Journal});
-	};
-	if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
+    my $self = eval {
+      Conjury::C::Linker->new
+	(Program => $program,
+	 Options => $arg{Options},
+	 Journal => $arg{Journal});
+    };
+    if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
 
-	$self->{Language} = $language;
-	bless $self, $class;
+    $self->{Language} = $language;
+    bless $self, $class;
 }
 
 package Conjury::C::Sun::Archiver;
@@ -203,54 +203,54 @@ use vars qw(@ISA);
 
 use Carp qw(croak);
 
-sub _new_f()	{ __PACKAGE__ . '::new'		}
+sub _new_f()    { __PACKAGE__ . '::new'     }
 
 BEGIN {
-	@ISA = qw(Conjury::C::Archiver);
+    @ISA = qw(Conjury::C::Archiver);
 
-	my $proto;
+    my $proto;
 
-	$proto = Conjury::Core::Prototype->new;
-	$proto->optional_arg
-	  (Program => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->optional_arg
-	  (No_Scanner => \&Conjury::Core::Prototype::validate_scalar);
-	$proto->optional_arg
-	  (Language => $verifier{suncc_language});
-	$proto->optional_arg
-	  (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
-	$proto->optional_arg
-	  (Journal => \&Conjury::Core::Prototype::validate_hash);
-	$prototype{_new_f()} = $proto;
+    $proto = Conjury::Core::Prototype->new;
+    $proto->optional_arg
+      (Program => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->optional_arg
+      (No_Scanner => \&Conjury::Core::Prototype::validate_scalar);
+    $proto->optional_arg
+      (Language => $verifier{suncc_language});
+    $proto->optional_arg
+      (Options => \&Conjury::Core::Prototype::validate_array_of_scalars);
+    $proto->optional_arg
+      (Journal => \&Conjury::Core::Prototype::validate_hash);
+    $prototype{_new_f()} = $proto;
 }
 
 sub new {
-	my ($class, %arg) = @_;
-	my $error = $prototype{_new_f()}->validate(\%arg);
-	croak _new_f, "-- $error" if $error;
+    my ($class, %arg) = @_;
+    my $error = $prototype{_new_f()}->validate(\%arg);
+    croak _new_f, "-- $error" if $error;
 
-	$class = ref($class) if ref($class);
+    $class = ref($class) if ref($class);
 
-	my $program = $arg{Program};
-	my $language = $arg{Language};
-	$language = 'c' unless defined($language);
-	$language = lc($language);
-	
-	my @arglist = ( );
-	if ($language eq 'c++') {
-		$program = 'CC' unless defined($program);
+    my $program = $arg{Program};
+    my $language = $arg{Language};
+    $language = 'c' unless defined($language);
+    $language = lc($language);
+    
+    my @arglist = ( );
+    if ($language eq 'c++') {
+	$program = 'CC' unless defined($program);
 
-		push @arglist, (Flag_Map => { 'r' => '-xar' });
-	}
+	push @arglist, (Flag_Map => { 'r' => '-xar' });
+    }
 
-	push @arglist, (Program => $program) if (defined $program);
-	push @arglist, (Options => $arg{Options}, Journal => $arg{Journal});
+    push @arglist, (Program => $program) if (defined $program);
+    push @arglist, (Options => $arg{Options}, Journal => $arg{Journal});
 
-	my $self = eval { Conjury::C::Archiver->new(@arglist) };
-	if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
+    my $self = eval { Conjury::C::Archiver->new(@arglist) };
+    if ($@) { $@ =~ s/ at \S+ line \d+\n//; croak $@; }
 
-	$self->{Language} = $language;
-	bless $self, $class;
+    $self->{Language} = $language;
+    bless $self, $class;
 }
 
 1;

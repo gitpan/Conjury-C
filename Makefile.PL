@@ -30,6 +30,11 @@ require 5.005;
 use strict;
 use ExtUtils::MakeMaker;
 
+my %prereq_pm = (
+    'Digest::MD5'    => 0,
+    'Conjury::Core'  => '1.004'
+);
+
 WriteMakefile
   NAME => 'Conjury::C',
   VERSION_FROM => 'lib/Conjury/C.pm',
