@@ -1,0 +1,7 @@
+1999-10-04  james woodyatt  <jhw@wetware.com>
+
+	*  (C.pm GNU.pm MANIFEST Makefile.PL README): Changed namespace
+	from Conjure::xxxxx to Conjury::xxxxx.
+	(C.pm): Changed VERSION to 1.002.
+	(ChangeLog): Added file.
+

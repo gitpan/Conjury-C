@@ -1,0 +1,6 @@
+MANIFEST		This file.
+README			Read about how to install the software
+LICENSE			Agree with terms before using
+Makefile.PL		Perl Makefile builder.
+C.pm			Conjury with C/C++ compilers, linkers and archivers.
+C/GNU.pm		Conjury with the GNU C/C++ tools.
